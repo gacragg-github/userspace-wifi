@@ -58,6 +58,7 @@ struct iqradio {
     /* Samples still to drop from the start of a new stream */
     size_t skip;
     unsigned long losses;
+    int chains;
 };
 
 /* The analog gain codes of a band under the hold (mt7921iq.h): the usable LNA codes, lna_db
@@ -227,6 +228,7 @@ struct iqradio *iqradio_new(struct iqdev *d) {
         return NULL;
     }
     r->d = d;
+    r->chains = 1;
     return r;
 }
 
@@ -274,6 +276,8 @@ int iqradio_tune(struct iqradio *r, double hz, unsigned int bw_mhz) {
 
     if (!iqradio_center_ok(iqdev_chip(r->d), hz, bw_mhz))
         return -ERANGE;
+    if (r->chains == 2 && bw_mhz != 40)
+        return -EINVAL;
     if (drain(r) < 0)
         return -EIO;
     /* Before the tune: the MT7925 sets its gain up with the stream */
@@ -306,11 +310,23 @@ int iqradio_read(struct iqradio *r, iqradio_sample_t *buf, size_t n) {
     while (r->skip > 0) {
         size_t k = r->skip < n ? r->skip : n;
 
-        if (read_samples(r, buf, k) < 0)
+        if (read_samples(r, buf, k * r->chains) < 0)
             return -1;
         r->skip -= k;
     }
-    return read_samples(r, buf, n);
+    return read_samples(r, buf, n * r->chains);
+}
+
+int iqradio_set_chains(struct iqradio *r, int n) {
+    int ret = iqdev_set_chains(r->d, n);
+
+    if (ret == 0)
+        r->chains = n;
+    return ret;
+}
+
+int iqradio_chains(const struct iqradio *r) {
+    return r->chains;
 }
 
 int iqradio_flush(struct iqradio *r) {

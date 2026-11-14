@@ -3,5 +3,6 @@ Tree:   https://github.com/MtkWifiRev/Mtk79ICAP
 Commit: 38221102d67191cfa129644b002a433afb44dae0
 License: MIT (see LICENSE)
 
-Copied unmodified, without its test; iqstream_ioctl.h comes from
+Copied without its test, unmodified apart from DUAL40 (format 9: both chains' words
+interleaved, decoded as a dense stream at 80 MS/s of words); iqstream_ioctl.h comes from
 ../../../drivers/mt76_icap/mt7921.

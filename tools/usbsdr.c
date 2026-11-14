@@ -55,7 +55,7 @@ static void usage(const char *argv0) {
     fprintf(stderr,
             "usage: %s list\n"
             "       %s info [-d NAME]\n"
-            "       %s capture [-d NAME] (-f FREQ | -c CHAN) [-b BW] [-g DB|agc] [-F FORMAT]\n"
+            "       %s capture [-d NAME] (-f FREQ | -c CHAN) [-b BW] [-g DB|agc] [-C 1|2] [-F FORMAT]\n"
             "                  [-n SAMPLES | -T SECONDS] [-m] -w FILE|-\n"
             "\n"
             "  -d, --device NAME     adapter, such as mt7921sdr-0 (default the first)\n"
@@ -64,6 +64,8 @@ static void usage(const char *argv0) {
             "  -b, --bandwidth MHZ   20, 40 or 80; 160 on the MT7925 (default 20)\n"
             "  -g, --gain DB|agc     analog gain held DB above the band's lowest, or the chip's AGC\n"
             "                        (default: held at the band's default)\n"
+            "  -C, --chains N        2: both RX chains, interleaved sample by sample (chain 0, chain 1);\n"
+            "                        the MT7921AU at 40 MHz only, for the phase between the antennas\n"
             "  -F, --format FORMAT   cf32, cs16, cs8 or cu8 (default cf32)\n"
             "  -n, --samples N       stop after N samples\n"
             "  -T, --duration S      stop after S seconds of samples\n"
@@ -258,6 +260,7 @@ struct capture_opts {
     const char *name, *path;
     double hz, gain, limit_samples, limit_secs;
     unsigned int bw;
+    int chains;
     enum iqout_format fmt;
     bool sigmf, quiet;
 };
@@ -284,7 +287,8 @@ static int write_meta(const struct capture_opts *o, const char *base, const stru
     FILE *f;
     int r;
 
-    snprintf(desc, sizeof(desc), "%s I/Q, %u MHz channel", iqdev_chip_name(info->chip), o->bw);
+    snprintf(desc, sizeof(desc), "%s I/Q, %u MHz channel%s", iqdev_chip_name(info->chip), o->bw,
+            o->chains == 2 ? ", RX chains 0 and 1 interleaved sample by sample" : "");
     if (snprintf(path, sizeof(path), "%s.sigmf-meta", base) >= (int) sizeof(path))
         return -1;
     if ((f = fopen(path, "w")) == NULL) {
@@ -319,6 +323,10 @@ static int cmd_capture(const struct capture_opts *o) {
 
     if (find_adapter(o->name, &info) < 0)
         return 1;
+    if (o->chains == 2 && (info.chip != IQDEV_MT7921 || o->bw != 40)) {
+        fprintf(stderr, "two chains need the MT7921AU at -b 40\n");
+        return 1;
+    }
     if (!iqradio_center_ok(info.chip, o->hz, o->bw)) {
         fprintf(stderr, "%s can't tune %.3f MHz at %u MHz wide; see 'usbsdr info'\n",
                 iqdev_chip_name(info.chip), o->hz / 1e6, o->bw);
@@ -362,6 +370,10 @@ static int cmd_capture(const struct capture_opts *o) {
         fprintf(stderr, "out of memory\n");
         goto done;
     }
+    if (o->chains == 2 && (e = iqradio_set_chains(r, 2)) < 0) {
+        fprintf(stderr, "%s: two chains failed: %s\n", info.name, strerror(-e));
+        goto done;
+    }
     /* Before the tune, which applies the MT7925's */
     if ((e = iqradio_set_gain(r, o->gain)) < 0) {
         fprintf(stderr, "%s: setting the gain failed: %s\n", info.name, strerror(-e));
@@ -373,8 +385,8 @@ static int cmd_capture(const struct capture_opts *o) {
     }
     rate = iqradio_rate(r);
     limit = o->limit_samples > 0 ? o->limit_samples : o->limit_secs > 0 ? ceil(o->limit_secs * rate) : 0;
-    if ((buf = malloc(CHUNK * sizeof(*buf))) == NULL ||
-            (out = malloc(CHUNK * iqout_sample_bytes(o->fmt))) == NULL) {
+    if ((buf = malloc(CHUNK * (size_t) o->chains * sizeof(*buf))) == NULL ||
+            (out = malloc(CHUNK * (size_t) o->chains * iqout_sample_bytes(o->fmt))) == NULL) {
         fprintf(stderr, "out of memory\n");
         goto done;
     }
@@ -382,8 +394,9 @@ static int cmd_capture(const struct capture_opts *o) {
     if (o->sigmf && write_meta(o, base, &info, rate, start) < 0)
         goto done;
     if (!o->quiet)
-        fprintf(stderr, "%s: %.3f MHz, %u MHz wide, %.4f MS/s %s to %s\n", info.name, o->hz / 1e6, o->bw,
-                rate / 1e6, iqout_format_name(o->fmt), strcmp(data_path, "-") == 0 ? "stdout" : data_path);
+        fprintf(stderr, "%s: %.3f MHz, %u MHz wide, %.4f MS/s %s%s to %s\n", info.name, o->hz / 1e6, o->bw,
+                rate / 1e6, iqout_format_name(o->fmt), o->chains == 2 ? " x 2 chains" : "",
+                strcmp(data_path, "-") == 0 ? "stdout" : data_path);
 
     last = now_s(CLOCK_MONOTONIC);
     ret = 0;
@@ -400,8 +413,8 @@ static int cmd_capture(const struct capture_opts *o) {
             }
             break;
         }
-        clips += iqout_convert(o->fmt, buf, n, out);
-        if (write_all(fd, out, n * iqout_sample_bytes(o->fmt)) < 0) {
+        clips += iqout_convert(o->fmt, buf, n * (size_t) o->chains, out);
+        if (write_all(fd, out, n * (size_t) o->chains * iqout_sample_bytes(o->fmt)) < 0) {
             /* The reader went away: a normal end for a pipe */
             if (errno != EPIPE) {
                 fprintf(stderr, "write failed: %s\n", strerror(errno));
@@ -438,6 +451,7 @@ int main(int argc, char *argv[]) {
         { "channel", required_argument, NULL, 'c' },
         { "bandwidth", required_argument, NULL, 'b' },
         { "gain", required_argument, NULL, 'g' },
+        { "chains", required_argument, NULL, 'C' },
         { "format", required_argument, NULL, 'F' },
         { "samples", required_argument, NULL, 'n' },
         { "duration", required_argument, NULL, 'T' },
@@ -449,7 +463,7 @@ int main(int argc, char *argv[]) {
         { "help", no_argument, NULL, 'h' },
         { NULL, 0, NULL, 0 },
     };
-    struct capture_opts o = { .bw = 20, .gain = IQRADIO_GAIN_DEFAULT, .fmt = IQOUT_CF32 };
+    struct capture_opts o = { .bw = 20, .chains = 1, .gain = IQRADIO_GAIN_DEFAULT, .fmt = IQOUT_CF32 };
     const char *fw_dir = NULL, *cmd;
     bool have_freq = false;
     int verbose = 0, opt;
@@ -461,7 +475,7 @@ int main(int argc, char *argv[]) {
     }
     cmd = argv[1];
     optind = 2;
-    while ((opt = getopt_long(argc, argv, "d:f:c:b:g:F:n:T:w:mqvh", longopts, NULL)) != -1) {
+    while ((opt = getopt_long(argc, argv, "d:f:c:b:g:C:F:n:T:w:mqvh", longopts, NULL)) != -1) {
         switch (opt) {
             case 'd': o.name = optarg; break;
             case 'f':
@@ -495,6 +509,13 @@ int main(int argc, char *argv[]) {
                 /* 0 dB is the lowest held code; the radio takes 0 as the AGC */
                 if (o.gain < 0.01)
                     o.gain = 0.01;
+                break;
+            case 'C':
+                o.chains = atoi(optarg);
+                if (o.chains != 1 && o.chains != 2) {
+                    fprintf(stderr, "bad chains: %s (1 or 2)\n", optarg);
+                    return 1;
+                }
                 break;
             case 'F':
                 if (iqout_parse_format(optarg, &o.fmt) < 0) {

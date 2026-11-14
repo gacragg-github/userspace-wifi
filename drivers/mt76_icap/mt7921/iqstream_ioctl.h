@@ -62,6 +62,11 @@ struct mt7921_iq_tune {
 					 * channel: continuous, 320 MB/s */
 #define MT7921_IQ_FMT_DENSE40_C1 7	/* DENSE40 from RX chain 1 (tap 13) */
 #define MT7921_IQ_FMT_DENSE80_C1 8	/* DENSE80 from RX chain 1 (tap 13) */
+#define MT7921_IQ_FMT_DUAL40	9	/* both RX chains, raw records
+					 * [l0(t) l1(t) l0(t+1) l1(t+1)], 40 MS/s
+					 * per chain, 40 MHz channel, continuous,
+					 * 320 MB/s (module parameter iq_dual;
+					 * local addition) */
 #define MT7921_IQ_FMT_META	0xf	/* driver record: 16-byte payload
 					 * struct mt7921_iq_snap_meta */
 

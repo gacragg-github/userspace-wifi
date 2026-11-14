@@ -99,12 +99,15 @@ struct mt7921iq_dec {
 static int is_dense(uint32_t fmt)
 {
 	return fmt == MT7921_IQ_FMT_DENSE40 || fmt == MT7921_IQ_FMT_DENSE80 ||
-	       fmt == MT7921_IQ_FMT_DENSE40_C1 || fmt == MT7921_IQ_FMT_DENSE80_C1;
+	       fmt == MT7921_IQ_FMT_DENSE40_C1 || fmt == MT7921_IQ_FMT_DENSE80_C1 ||
+	       fmt == MT7921_IQ_FMT_DUAL40;
 }
 
 static int is_dense80(uint32_t fmt)
 {
-	return fmt == MT7921_IQ_FMT_DENSE80 || fmt == MT7921_IQ_FMT_DENSE80_C1;
+	/* DUAL40: two chains' words interleaved, 80 MS/s of words (local addition) */
+	return fmt == MT7921_IQ_FMT_DENSE80 || fmt == MT7921_IQ_FMT_DENSE80_C1 ||
+	       fmt == MT7921_IQ_FMT_DUAL40;
 }
 
 static uint32_t le32(const uint8_t *p)

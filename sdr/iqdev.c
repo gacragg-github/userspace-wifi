@@ -151,6 +151,14 @@ int iqdev_gain(struct iqdev *d, bool hold, unsigned int lna, unsigned int lpf) {
     return mt7925_iq_gain(d->mt7925, hold, lna, lpf);
 }
 
+int iqdev_set_chains(struct iqdev *d, int n) {
+    if (n != 1 && n != 2)
+        return -EINVAL;
+    if (d->chip == IQDEV_MT7921)
+        return mt7921_iq_set_dual(d->mt7921, n == 2);
+    return n == 1 ? 0 : -EOPNOTSUPP;
+}
+
 ssize_t iqdev_read(struct iqdev *d, void *buf, size_t len) {
     if (d->chip == IQDEV_MT7921)
         return mt7921_iq_read(d->mt7921, buf, len);
