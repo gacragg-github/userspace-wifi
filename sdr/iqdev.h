@@ -78,6 +78,8 @@ int iqdev_tune(struct iqdev *d, unsigned int freq_khz, unsigned int bw_mhz,
 /* The chip's AGC, or the analog gain held at an LNA and LPF code (the MT7921AU's live, the
  * MT7925's from its next tune) */
 int iqdev_gain(struct iqdev *d, bool hold, unsigned int lna, unsigned int lpf);
+/* 1, or 2 for both RX chains at 40 MHz (the MT7921AU's only), from the next tune */
+int iqdev_set_chains(struct iqdev *d, int n);
 /* Whole IQB2 records, without waiting: 0 when none are ready, -1 once the stream has ended */
 ssize_t iqdev_read(struct iqdev *d, void *buf, size_t len);
 

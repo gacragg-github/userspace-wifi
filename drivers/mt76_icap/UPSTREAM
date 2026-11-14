@@ -12,3 +12,7 @@ newer Mtk79ICAP.
 
 Local changes: mt7921/iqstream.c, mt7921_iqs_gain_clear_stale(), which releases a gain
 forced by an earlier process at stream open.
+
+Local changes: mt7921/iqstream.c and mt7921/iqstream_ioctl.h, module parameter iq_dual and
+format DUAL40 (9): both RX chains at 40 MHz as raw two-lane records, 40 MS/s per chain,
+with the DENSE80 transport settings (8 KiB blocks, 32 KiB USB aggregation).

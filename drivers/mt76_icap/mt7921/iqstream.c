@@ -60,6 +60,13 @@ static bool iq_dense;
 module_param(iq_dense, bool, 0644);
 MODULE_PARM_DESC(iq_dense, "40/80 MHz: dense single-chain capture (DFE MODE 0x13, tap 12, or tap 13 for RX chain 1 via the tune flag CHAIN1): 40 MHz as DENSE40 at 160 MB/s instead of PACK96, 80 MHz as a continuous DENSE80 stream at 320 MB/s instead of snapshots (needs a reader that knows formats 5-8)");
 
+/* Local addition: both RX chains at 40 MHz, the raw two-lane layout with the
+ * DENSE80 transport settings.
+ */
+static bool iq_dual;
+module_param(iq_dual, bool, 0644);
+MODULE_PARM_DESC(iq_dual, "40 MHz: both RX chains, raw two-lane records at 40 MS/s per chain (DUAL40, 320 MB/s) instead of PACK96 or DENSE40");
+
 static bool iq_pack32 = true;
 module_param(iq_pack32, bool, 0644);
 MODULE_PARM_DESC(iq_pack32, "ICAP En32b64b packing: one 20 MS/s stream at 160 MB/s (default); off = raw two-lane records at ~320 MB/s, which laps the ring");
@@ -1441,7 +1448,7 @@ static int mt7921_iqs_fw_start(struct mt7921_iqs *iqs)
 	struct mt792x_dev *dev = iqs->dev;
 	u32 ctl[8], gen, pack, fmt, block = iq_block, state = 0;
 	unsigned long timeout;
-	bool dense;
+	bool dense, dual;
 	int i, ret;
 
 	if (!mt7921_iqs_hw_ok(iqs))
@@ -1459,7 +1466,8 @@ static int mt7921_iqs_fw_start(struct mt7921_iqs *iqs)
 
 	mt7921_iqs_save(iqs);
 	iqs->ring = mt7921_iqs_ring_bytes(dev);
-	dense = iq_dense && iqs->bw_mhz >= 40;
+	dual = iq_dual && iqs->bw_mhz == 40 && !mt7921_iqs_wide24(iqs);
+	dense = iq_dense && iqs->bw_mhz >= 40 && !dual;
 	if (mt7921_iqs_wide24(iqs) && !dense)
 		return -EOPNOTSUPP;	/* iq_dense switched off since the tune */
 	if (iqs->bw_mhz == 80 && !dense) {
@@ -1489,7 +1497,7 @@ static int mt7921_iqs_fw_start(struct mt7921_iqs *iqs)
 	 * 320 MB/s, which the transport cannot sustain.
 	 */
 	mt7921_iqs_set_dlpf(dev->spectrum,
-			    !dense && iqs->bw_mhz == 40 && iq_tap80 ? 2 : 0);
+			    !dense && !dual && iqs->bw_mhz == 40 && iq_tap80 ? 2 : 0);
 	mt76_wr(dev, IQ_TRIGGER_ORDER, 1);
 	mt76_wr(dev, IQ_CUSTOM_RANGE, 1);
 
@@ -1519,6 +1527,8 @@ static int mt7921_iqs_fw_start(struct mt7921_iqs *iqs)
 		else
 			fmt = iqs->chain ? MT7921_IQ_FMT_DENSE40_C1 :
 					   MT7921_IQ_FMT_DENSE40;
+	} else if (dual) {
+		fmt = MT7921_IQ_FMT_DUAL40;
 	} else if (iqs->bw_mhz == 40 && iq_tap80) {
 		pack |= IQ_ICAP_EN32B64B;
 		fmt = MT7921_IQ_FMT_PACK32_40;
@@ -1547,7 +1557,8 @@ static int mt7921_iqs_fw_start(struct mt7921_iqs *iqs)
 	/* DENSE80 runs at 320 MB/s, the TX0 ceiling: it was validated with
 	 * 8 KiB blocks and 32 KiB USB aggregation (0 late blocks in 3 x 30 s).
 	 */
-	if (fmt == MT7921_IQ_FMT_DENSE80 || fmt == MT7921_IQ_FMT_DENSE80_C1) {
+	if (fmt == MT7921_IQ_FMT_DENSE80 || fmt == MT7921_IQ_FMT_DENSE80_C1 ||
+	    fmt == MT7921_IQ_FMT_DUAL40) {
 		block = max_t(u32, block, 8192);
 		mt7921_iqs_set_agg(iqs, true);
 	}

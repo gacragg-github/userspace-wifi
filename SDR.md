@@ -93,6 +93,15 @@ Gain is held at the band's default code unless `-g` says otherwise: `-g DB` hold
 the band's lowest usable code (`usbsdr info` gives the range), `-g agc` hands it to the chip's
 AGC, which dips by a few dB on every nearby frame.  The MT7925's gain applies at a tune.
 
+The MT7921AU can stream both RX chains at 40 MHz (`-C 2`): samples alternate chain 0, chain 1,
+40 MS/s each, 320 MB/s of cf32.  The chains share the LO and are time-aligned, so the phase
+between them per transmitter holds steady across a tune, apart from a 0/180 degree ambiguity.
+
+    ./usbsdr capture -f 5230 -b 40 -C 2 -F cs16 -T 1 -w dual.cs16
+
+Programs set it with `iqradio_set_chains(r, 2)` before the tune; `iqradio_read()` then returns
+pairs.  The driver module's `iq_dual` parameter does the same.
+
 ## SoapySDR
 
     SoapySDRUtil --find=driver=uwifisdr

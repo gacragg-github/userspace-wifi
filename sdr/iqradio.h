@@ -54,7 +54,12 @@ int iqradio_tune(struct iqradio *r, double hz, unsigned int bw_mhz);
 double iqradio_rate(const struct iqradio *r);
 double iqradio_center(const struct iqradio *r);
 
-/* n samples of one continuous run; -1 if the stream ended or stalled */
+/* 1, or 2 for both RX chains (MT7921AU, 40 MHz only), from the next tune */
+int iqradio_set_chains(struct iqradio *r, int n);
+int iqradio_chains(const struct iqradio *r);
+
+/* n samples of one continuous run (with two chains, n pairs: chain 0, chain 1); -1 if the
+ * stream ended or stalled */
 int iqradio_read(struct iqradio *r, iqradio_sample_t *buf, size_t n);
 /* Drops what the driver holds, so the next read is from now */
 int iqradio_flush(struct iqradio *r);

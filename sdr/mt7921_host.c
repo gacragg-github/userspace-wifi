@@ -224,6 +224,11 @@ int mt7921_iq_gain(struct mt7921_iq *q, bool hold, unsigned int lna, unsigned in
     return (int) q->misc->fops->unlocked_ioctl(&q->file, MT7921_IQ_IOC_SET_GAIN, (unsigned long) &g);
 }
 
+int mt7921_iq_set_dual(struct mt7921_iq *q, bool on) {
+    (void) q;
+    return kc_param_set("iq_dual", on);
+}
+
 ssize_t mt7921_iq_read(struct mt7921_iq *q, void *buf, size_t len) {
     loff_t pos = 0;
     ssize_t n;

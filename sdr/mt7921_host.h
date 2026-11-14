@@ -63,6 +63,8 @@ int mt7921_iq_tune(struct mt7921_iq *q, unsigned int freq_khz, unsigned int bw_m
 
 /* The chip's AGC, or the analog gain held at an LNA and LPF code */
 int mt7921_iq_gain(struct mt7921_iq *q, bool hold, unsigned int lna, unsigned int lpf);
+/* Both RX chains (40 MHz only, from the next tune), interleaved chain 0, chain 1 */
+int mt7921_iq_set_dual(struct mt7921_iq *q, bool on);
 
 /* Whole stream records, without waiting: 0 when none are ready, -1 once the stream has
  * ended */
