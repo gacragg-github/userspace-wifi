@@ -73,6 +73,7 @@ MAC80211_OBJS = \
 	mac80211/rx.o \
 	mac80211/tx.o \
 	mac80211/cfg80211.o \
+	mac80211/wiphy_work.o \
 	kcompat/upstream/radiotap.o
 
 MT76_CORE_OBJS = \
