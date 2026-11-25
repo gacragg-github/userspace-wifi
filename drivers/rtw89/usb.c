@@ -1134,14 +1134,15 @@ static int rtw89_usb_switch_mode_be(struct rtw89_dev *rtwdev)
 	return 1;
 }
 
-/* kismet: off; switching re-enumerates the adapter, which the libusb host can't follow yet,
- * so the first open after plugging in would fail.  An adapter already switched (it stays
- * in USB 3 until power is removed) keeps working at 5Gbps. */
+/* kismet: off unless UWIFI_RTW89_USB3 is set; switching re-enumerates the adapter, which the
+ * libusb host can't follow yet, so the open that switches fails.  An adapter already
+ * switched (it stays in USB 3 until power is removed) keeps working at 5Gbps. */
 static bool rtw89_switch_usb_mode = false;
 
 static int rtw89_usb_switch_mode(struct rtw89_dev *rtwdev)
 {
 	struct rtw89_usb *rtwusb = rtw89_usb_priv(rtwdev);
+	int ret;
 
 	if (rtwusb->udev->speed == USB_SPEED_SUPER) {
 		rtw89_info(rtwdev,
@@ -1149,13 +1150,19 @@ static int rtw89_usb_switch_mode(struct rtw89_dev *rtwdev)
 		return 0;
 	}
 
-	if (!rtw89_switch_usb_mode)
+	if (!rtw89_switch_usb_mode && !getenv("UWIFI_RTW89_USB3"))
 		return 0;
 
 	if (rtwdev->chip->chip_gen == RTW89_CHIP_AX)
-		return rtw89_usb_switch_mode_ax(rtwdev);
+		ret = rtw89_usb_switch_mode_ax(rtwdev);
+	else
+		ret = rtw89_usb_switch_mode_be(rtwdev);
 
-	return rtw89_usb_switch_mode_be(rtwdev);
+	if (ret)
+		rtw89_warn(rtwdev,
+			   "switching to USB 3; this open fails, run again once the adapter reappears\n");
+
+	return ret;
 }
 
 static ssize_t serial_number_show(struct device *dev,
