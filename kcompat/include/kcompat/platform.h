@@ -179,6 +179,22 @@ struct kobject;
 #define __ATTRIBUTE_GROUPS(name) \
     static const struct attribute_group *name##_groups[] = { &name##_group, NULL }
 
+/* Network byte order, as the kernel's byteorder/generic.h.  macOS libc defines these from
+ * <sys/types.h>; glibc only in <arpa/inet.h> and <netinet/in.h>, which kcompat doesn't
+ * include */
+#ifndef htons
+#define htons(x) cpu_to_be16(x)
+#endif
+#ifndef ntohs
+#define ntohs(x) be16_to_cpu(x)
+#endif
+#ifndef htonl
+#define htonl(x) cpu_to_be32(x)
+#endif
+#ifndef ntohl
+#define ntohl(x) be32_to_cpu(x)
+#endif
+
 /* IPv4, UDP and ARP headers, as the kernel lays them out */
 #ifndef IPPROTO_ICMP
 #define IPPROTO_ICMP 1
